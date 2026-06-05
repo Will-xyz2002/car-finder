@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -43,6 +44,19 @@ def get_listings(
         .limit(limit)
         .all()
     )
+
+
+@router.post("/", response_model=schemas.Listing, status_code=201)
+def create_listing(payload: schemas.ListingCreate, db: Session = Depends(get_db)):
+    listing = models.Listing(**payload.model_dump())
+    db.add(listing)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="source_url already exists")
+    db.refresh(listing)
+    return listing
 
 
 @router.get("/{listing_id}", response_model=schemas.Listing)
